@@ -205,10 +205,10 @@ page reload, and logout invalidates it. All suites pass.
 
 **Goal**: an agreed schema, documented and signed off before any DB code is written.
 
-- [ ] Write `docs/DATABASE.md` covering the tables below, the ordering strategy, cascade
+- [x] Write `docs/DATABASE.md` covering the tables below, the ordering strategy, cascade
       rules, the seed behaviour for a new user's board, and the `BoardData` JSON shape the
       API exposes
-- [ ] Include a worked example: the seeded five-column board as both rows and API JSON
+- [x] Include a worked example: the seeded five-column board as both rows and API JSON
 - [ ] **Get explicit user sign-off on `docs/DATABASE.md` before starting Part 6**
 
 Proposed schema:
