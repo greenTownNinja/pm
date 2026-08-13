@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Management MVP</title>
+    <style>
+      :root {
+        --accent-yellow: #ecad0a;
+        --primary-blue: #209dd7;
+        --secondary-purple: #753991;
+        --navy-dark: #032147;
+        --gray-text: #888888;
+        --surface: #f7f8fb;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--surface);
+        color: var(--navy-dark);
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      main {
+        background: #fff;
+        border-radius: 24px;
+        padding: 48px;
+        min-width: 380px;
+        box-shadow: 0 18px 40px rgba(3, 33, 71, 0.12);
+        border-top: 4px solid var(--accent-yellow);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0 0 32px;
+        color: var(--gray-text);
+        font-size: 14px;
+      }
+      .label {
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--gray-text);
+      }
+      #status {
+        margin-top: 8px;
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--primary-blue);
+      }
+      #status.error {
+        color: var(--secondary-purple);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Project Management MVP</h1>
+      <p>Scaffolding check: this page is served by FastAPI.</p>
+      <span class="label">GET /api/health</span>
+      <div id="status">checking...</div>
+    </main>
+    <script>
+      const target = document.getElementById("status");
+      fetch("/api/health")
+        .then((response) => response.json())
+        .then((data) => {
+          target.textContent = data.status;
+        })
+        .catch((error) => {
+          target.classList.add("error");
+          target.textContent = "unreachable: " + error.message;
+        });
+    </script>
+  </body>
+</html>

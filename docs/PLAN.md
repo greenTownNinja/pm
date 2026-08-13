@@ -54,7 +54,7 @@ Recorded during planning; addressed in the parts noted.
 - [x] Resolve open design questions with the user
 - [x] Enrich `docs/PLAN.md` with per-part checklists, tests, and success criteria
 - [x] Write `frontend/AGENTS.md` describing the existing code
-- [ ] User reviews and approves this plan
+- [x] User reviews and approves this plan
 
 **Success criteria**: user has explicitly approved this document.
 
@@ -65,31 +65,34 @@ Recorded during planning; addressed in the parts noted.
 **Goal**: a Docker container that runs FastAPI, serves a placeholder static page at `/`,
 and answers an API call. No Kanban, no database yet.
 
-- [ ] Create `backend/pyproject.toml` (uv-managed) with `fastapi`, `uvicorn[standard]`,
+- [x] Create `backend/pyproject.toml` (uv-managed) with `fastapi`, `uvicorn[standard]`,
       `sqlalchemy`, `httpx`, `pydantic-settings`, and dev group `pytest`, `pytest-asyncio`
-- [ ] Create `backend/app/main.py` with the FastAPI app
-- [ ] Add `GET /api/health` returning `{"status": "ok"}`
-- [ ] Mount a `StaticFiles` app at `/` serving `backend/static/`, with an index fallback
+- [x] Create `backend/app/main.py` with the FastAPI app
+- [x] Add `GET /api/health` returning `{"status": "ok"}`
+- [x] Mount a `StaticFiles` app at `/` serving `backend/static/`, with an index fallback
       so client-side routes resolve to `index.html`
-- [ ] Add a placeholder `backend/static/index.html` that calls `/api/health` and renders
+- [x] Add a placeholder `backend/static/index.html` that calls `/api/health` and renders
       the result, proving the static-plus-API round trip
-- [ ] Create `.env` in the project root with `OPENROUTER_API_KEY=` (empty for now) and
+- [x] Create `.env` in the project root with `OPENROUTER_API_KEY=` (empty for now) and
       `SESSION_SECRET=`; confirm `.gitignore` excludes it
-- [ ] Load settings from `.env` via `pydantic-settings`
-- [ ] Write `Dockerfile`: `uv` base image, install deps from `pyproject.toml`, copy the
+- [x] Load settings from `.env` via `pydantic-settings`
+- [x] Write `Dockerfile`: `uv` base image, install deps from `pyproject.toml`, copy the
       backend, expose 8000, run uvicorn
-- [ ] Write `docker-compose.yml` mounting the SQLite data directory as a named volume and
-      passing `.env` through
-- [ ] Write `scripts/start.sh`, `scripts/stop.sh` (Mac/Linux) and `scripts/start.ps1`,
-      `scripts/stop.ps1` (Windows); all four build and run via compose
-- [ ] Write `backend/AGENTS.md` describing the backend layout
+- [x] Write `scripts/start.sh`, `scripts/stop.sh` (Mac/Linux) and `scripts/start.ps1`,
+      `scripts/stop.ps1` (Windows). Plain `docker build` and `docker run` - no compose.
+      Each script names the container `pm-app`, publishes 8000, passes `--env-file .env`,
+      and mounts the named volume `pm-data` at `/app/data` for the SQLite file
+- [x] Write `backend/AGENTS.md` describing the backend layout
 
 **Tests**
 
-- [ ] `pytest` unit test: `GET /api/health` returns 200 and `{"status": "ok"}`
-- [ ] `pytest` unit test: `GET /` returns 200 and `text/html`
-- [ ] Manual: `scripts/start.sh`, load `http://localhost:8000`, see the health result
-      rendered; `scripts/stop.sh` stops the container cleanly
+- [x] `pytest` unit test: `GET /api/health` returns 200 and `{"status": "ok"}`
+- [x] `pytest` unit test: `GET /` returns 200 and `text/html`
+- [x] `pytest` unit test: an unknown path falls back to `index.html`
+- [x] Manual: `scripts/start.sh` builds and runs, `/api/health` and `/` both answer over
+      HTTP from the container, `scripts/stop.sh` removes it cleanly, and a restart works
+- [ ] Manual: confirm in a browser that the page *renders* the health result. Verified by
+      curl only so far - the Chrome extension was not connected. Pending a visual check
 
 **Success criteria**: a fresh clone plus `scripts/start.sh` yields a working page at
 `http://localhost:8000` that displays live data fetched from `/api/health`. All pytest
