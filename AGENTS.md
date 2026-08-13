@@ -23,6 +23,7 @@ For the MVP, this will run locally (in a docker container)
 - Python FastAPI backend, including serving the static NextJS site at /
 - Everything packaged into a Docker container
 - Use "uv" as the package manager for python in the Docker container
+- Use "ruff" for python linting and formatting
 - Use OpenRouter for the AI calls. An OPENROUTER_API_KEY is in .env in the project root
 - Use `openai/gpt-oss-120b` as the model
 - Use SQLLite local database for the database, creating a new db if it doesn't exist

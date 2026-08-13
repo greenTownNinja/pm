@@ -6,7 +6,7 @@ Dependencies are managed with `uv`; the app runs in a Docker container.
 ## Layout
 
 ```
-pyproject.toml    uv-managed dependencies and pytest config
+pyproject.toml    uv-managed dependencies, pytest and ruff config
 app/config.py     Settings, read from the environment or the project root .env
 app/main.py       FastAPI app: API routes, then the static mount
 static/           what gets served at / (placeholder now, the Next export from Part 3)
@@ -34,13 +34,23 @@ plain `docker build` and `docker run`.
 For a local loop without Docker: `uv sync` then
 `uv run uvicorn app.main:app --reload` from `backend/`.
 
-## Tests
+## Tests and linting
 
 `uv run pytest` from `backend/`. Tests use `fastapi.testclient.TestClient` and import the
-app as `from app.main import app`, so pytest must run with `backend/` as the working
-directory.
+app as `from app.main import app`; `pythonpath = ["."]` in `pyproject.toml` puts `backend/`
+on `sys.path`, so pytest must run with `backend/` as the working directory.
 
 To run them in the container: `docker exec pm-app pytest`.
+
+Ruff is the linter and formatter. Run both before committing Python changes:
+
+```
+uv run ruff check .      # add --fix to apply safe fixes
+uv run ruff format .
+```
+
+Rules selected: `E`, `F`, `I`, `UP`, `B` (pycodestyle, pyflakes, isort, pyupgrade,
+bugbear). Keep imports sorted by ruff rather than by hand.
 
 ## Not built yet
 
