@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 from fastapi import APIRouter, HTTPException
 
@@ -11,17 +13,25 @@ MODEL = "openai/gpt-oss-120b"
 TIMEOUT = 60.0
 
 
-async def complete(messages: list[dict[str, str]]) -> str:
+async def complete(
+    messages: list[dict[str, str]], response_format: dict[str, Any] | None = None
+) -> str:
     """Send a chat completion to OpenRouter and return the reply text."""
     if not settings.openrouter_api_key:
         raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY is not set")
+
+    payload: dict[str, Any] = {"model": MODEL, "messages": messages}
+    if response_format is not None:
+        payload["response_format"] = response_format
+        # Route only to providers that actually enforce the schema.
+        payload["provider"] = {"require_parameters": True}
 
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(
                 OPENROUTER_URL,
                 headers={"Authorization": f"Bearer {settings.openrouter_api_key}"},
-                json={"model": MODEL, "messages": messages},
+                json=payload,
             )
     except httpx.HTTPError as exc:
         # Timeouts and connection failures are the upstream's problem, not a 500 here.

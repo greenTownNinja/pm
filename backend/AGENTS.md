@@ -11,6 +11,7 @@ app/config.py     Settings, read from the environment or the project root .env
 app/main.py       FastAPI app: session middleware, API routes, then the static mount
 app/auth.py       login / logout / me, and the require_user dependency
 app/ai.py         OpenRouter client and the temporary /api/ai/ping route
+app/chat.py       the AI chat route, its prompt, and the board actions it applies
 app/board.py      board read and mutation routes
 app/db.py         engine, session factory, init_db
 app/models.py     SQLAlchemy models for the five tables
@@ -124,7 +125,27 @@ response bodies all raise `HTTPException(502)`. A missing `OPENROUTER_API_KEY` r
 `POST /api/ai/ping` is a temporary proof of the live call, removed in Part 10. Tests
 monkeypatch `httpx.AsyncClient.post`, so the suite needs no network.
 
+## Chat
+
+`POST /api/chat` takes `{message}` and returns `{reply, board}`. It builds a system
+prompt containing the board as `BoardOut` JSON, replays the last `HISTORY_LIMIT` stored
+messages, calls the model, applies any actions it asked for, persists the user and
+assistant messages, and returns the post-update board so the client needs no second
+request. `GET /api/chat/history` returns the whole stored conversation, uncapped.
+
+The model answers under strict Structured Outputs (`RESPONSE_FORMAT` in `app/chat.py`).
+Strict mode forbids optional and conditional properties, so an action is one flat object -
+`action` plus `cardId`, `columnId`, `title`, `details`, `position`, every field required
+and nullable - rather than a union per action type. Adding an action means editing both
+`RESPONSE_FORMAT` and `Action` in `app/schemas.py`, then `apply_action`.
+
+The whole turn is one transaction. `resolve` turns an id the model invented, or one
+belonging to another user, into a 400 naming it; the batch is rolled back and the turn is
+not stored. A response that does not parse as `ModelReply` is a 502.
+
+`app/chat.py` reuses `board.py` for every mutation - `load_column`, `load_card`,
+`place_card`, `renumber`, `serialize` - so the AI path and the REST path cannot drift.
+
 ## Not built yet
 
-The chat route lands in Part 9 of `docs/PLAN.md`. `messages` exists in the schema but
-nothing reads or writes it yet.
+The chat UI lands in Part 10 of `docs/PLAN.md`, which also removes `/api/ai/ping`.

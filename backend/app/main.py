@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import Scope
 
-from app import ai, auth, board
+from app import ai, auth, board, chat
 from app.config import STATIC_DIR, settings
 from app.db import init_db
 
@@ -36,6 +36,7 @@ def health() -> dict[str, str]:
 app.include_router(auth.router)
 app.include_router(board.router)
 app.include_router(ai.router)
+app.include_router(chat.router)
 
 
 class SPAStaticFiles(StaticFiles):

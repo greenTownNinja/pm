@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -47,3 +47,37 @@ class CardUpdate(BaseModel):
 class CardMove(BaseModel):
     columnId: str
     position: int = Field(ge=0)
+
+
+class ChatRequest(BaseModel):
+    message: Title
+
+
+class MessageOut(BaseModel):
+    role: str
+    content: str
+
+
+class ChatOut(BaseModel):
+    reply: str
+    board: BoardOut
+
+
+class Action(BaseModel):
+    """One board change asked for by the model. Fields it does not need are null."""
+
+    action: Literal[
+        "create_card", "edit_card", "move_card", "delete_card", "rename_column"
+    ]
+    cardId: str | None = None
+    columnId: str | None = None
+    title: str | None = None
+    details: str | None = None
+    position: int | None = None
+
+
+class ModelReply(BaseModel):
+    """The model's structured response, validated before anything is applied."""
+
+    reply: str
+    updates: list[Action] | None = None

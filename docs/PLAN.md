@@ -388,37 +388,62 @@ tests pass without network access.
 **Goal**: the model sees the board and the conversation, and answers with a structured
 response that may include board updates.
 
-- [ ] Define the response schema: `{reply: string, updates: Action[] | null}` where each
+- [x] Define the response schema: `{reply: string, updates: Action[] | null}` where each
       action is one of `create_card`, `edit_card`, `move_card`, `delete_card`,
       `rename_column`, each with the fields that operation needs
-- [ ] Request Structured Outputs via `response_format: {type: "json_schema", strict: true}`.
+- [x] Request Structured Outputs via `response_format: {type: "json_schema", strict: true}`.
       **Verify OpenRouter honours strict json_schema for this model early in the part** - if
       it does not, fall back to tool calling with the same schema, and record which path was
       taken in `docs/`
-- [ ] System prompt: role, the current board JSON, the available actions, and an instruction
+- [x] System prompt: role, the current board JSON, the available actions, and an instruction
       to return no updates when the user is only asking a question
-- [ ] `POST /api/chat` takes `{message}`, loads history and the board, calls the model,
+- [x] `POST /api/chat` takes `{message}`, loads history and the board, calls the model,
       applies any returned actions in a single transaction, persists both messages, and
       returns `{reply, board}` with the post-update board
-- [ ] `GET /api/chat/history` returns the stored conversation
-- [ ] Validate every action against the real board before applying; reject unknown card or
+- [x] `GET /api/chat/history` returns the stored conversation
+- [x] Validate every action against the real board before applying; reject unknown card or
       column ids rather than half-applying a batch
-- [ ] Cap the history sent to the model at a fixed number of recent turns
+- [x] Cap the history sent to the model at a fixed number of recent turns
 
 **Tests**
 
-- [ ] pytest with mocked model responses, one per action type, asserting the board changes
+- [x] pytest with mocked model responses, one per action type, asserting the board changes
       exactly as expected
-- [ ] pytest: a multi-action response applies all actions atomically
-- [ ] pytest: an action referencing an unknown id rolls back the whole batch and returns an error
-- [ ] pytest: a reply with `updates: null` leaves the board untouched
-- [ ] pytest: malformed model JSON returns a clean error, not a 500
-- [ ] pytest: history is persisted and replayed in order, and is trimmed at the cap
-- [ ] Manual, live: "move the QA card to Done" actually moves it; "what is on my board?"
+- [x] pytest: a multi-action response applies all actions atomically
+- [x] pytest: an action referencing an unknown id rolls back the whole batch and returns an error
+- [x] pytest: a reply with `updates: null` leaves the board untouched
+- [x] pytest: malformed model JSON returns a clean error, not a 500
+- [x] pytest: history is persisted and replayed in order, and is trimmed at the cap
+- [x] Manual, live: "move the QA card to Done" actually moves it; "what is on my board?"
       answers without changing anything
 
 **Success criteria**: live requests both answer questions and correctly modify the board.
 All mocked tests pass.
+
+**Notes from execution**
+
+- **Structured Outputs works.** A live probe confirmed OpenRouter honours
+  `response_format: {type: "json_schema", strict: true}` for `openai/gpt-oss-120b`, so
+  the tool-calling fallback was not needed. The request also sends
+  `provider: {require_parameters: true}` so OpenRouter only routes to providers that
+  enforce the schema rather than silently ignoring it.
+- Strict mode allows no optional or conditional properties, so there is **one flat action
+  shape** rather than a per-action union: `action` plus `cardId`, `columnId`, `title`,
+  `details`, `position`, all required and all nullable. The prompt tells the model to null
+  the fields an action does not need, and `apply_action` reads only the ones it needs.
+- `move_card` with a null `position` means the bottom of the target column. That is the
+  natural reading of "move it to Done", and the remove-then-insert clamp from Part 6
+  already handles a past-the-end index.
+- Ids the model invents are a 400, not a 404: `resolve` wraps `load_card` / `load_column`
+  so cross-user rows stay invisible, and turns their 404 into a bad-request naming the id.
+  The whole batch is rolled back, and the turn is not written to `messages` either.
+- Board mutation logic is not duplicated: `place_card` moved out of `board.move_card` and
+  both the REST route and the AI action call it.
+- `HISTORY_LIMIT` (20 messages) caps only what is *replayed to the model*.
+  `GET /api/chat/history` still returns the whole conversation.
+- Live: "move the QA micro-interactions card to Review" moved it; "what is on my board?"
+  answered without changing anything. The model replies in markdown despite being asked
+  for plain prose - Part 10 decides whether to render it or press harder in the prompt.
 
 ---
 

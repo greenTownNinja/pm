@@ -200,7 +200,9 @@ As rows, immediately after seeding.
 | 7  | 5         | Ship marketing page       | Final copy approved and asset pack delivered.              | 0 |
 | 8  | 5         | Close onboarding sprint   | Document release notes and share internally.               | 1 |
 
-`messages` is empty.
+`messages` is empty until the user chats. Each chat turn appends two rows to it, the
+user's message and the assistant's reply, ordered by `created_at`. `GET /api/chat/history`
+returns all of them; only the most recent `HISTORY_LIMIT` are replayed to the model.
 
 The same board from `GET /api/board`:
 

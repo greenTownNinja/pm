@@ -48,6 +48,19 @@ def renumber(cards: list[Card]) -> None:
         card.position = position
 
 
+def place_card(card: Card, target: BoardColumn, position: int) -> None:
+    """Remove the card from its column, then insert it into the target at position."""
+    source = card.column
+    source_cards = [other for other in source.cards if other.id != card.id]
+    target_cards = source_cards if target.id == source.id else list(target.cards)
+    # Past the end means "last", so a move to the bottom needs no exact index.
+    target_cards.insert(min(position, len(target_cards)), card)
+
+    card.column = target
+    renumber(source_cards)
+    renumber(target_cards)
+
+
 def parse_id(value: str) -> int:
     """Ids are opaque strings to the client, so a non-numeric one is just a miss."""
     if not value.isdigit():
@@ -145,18 +158,10 @@ def delete_card(card_id: int, db: Db, user: CurrentUser) -> BoardOut:
 @router.post("/cards/{card_id}/move")
 def move_card(card_id: int, body: CardMove, db: Db, user: CurrentUser) -> BoardOut:
     card = load_card(db, user, card_id)
-    source = card.column
     target = load_column(db, user, parse_id(body.columnId))
     board = target.board
 
-    source_cards = [other for other in source.cards if other.id != card.id]
-    target_cards = source_cards if target.id == source.id else list(target.cards)
-    # Past the end means "last", so a move to the bottom needs no exact index.
-    target_cards.insert(min(body.position, len(target_cards)), card)
-
-    card.column = target
-    renumber(source_cards)
-    renumber(target_cards)
+    place_card(card, target, body.position)
     board.updated_at = utcnow()
     db.commit()
     return serialize(board)
