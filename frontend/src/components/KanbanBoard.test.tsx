@@ -13,9 +13,12 @@ const failed = () => ({
 
 /** Routes /api/board to the fixture and answers every mutation with `mutationBody`. */
 const mockApi = (mutationBody: unknown = boardFixture) => {
-  const fetchMock = vi.fn(async (path: string, init?: RequestInit) =>
-    path === "/api/board" && !init?.method ? ok(boardFixture) : ok(mutationBody)
-  );
+  const fetchMock = vi.fn(async (path: string, init?: RequestInit) => {
+    if (path === "/api/chat/history") {
+      return ok([]);
+    }
+    return path === "/api/board" && !init?.method ? ok(boardFixture) : ok(mutationBody);
+  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 };

@@ -184,3 +184,8 @@ backend/static/*
 
 # Local SQLite database (the container keeps its own in a volume)
 backend/data/
+
+# Playwright output
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/

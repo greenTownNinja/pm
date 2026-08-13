@@ -1,8 +1,11 @@
 import httpx
 import pytest
+from fastapi import HTTPException
 
 from app import ai
 from app.config import settings
+
+MESSAGES = [{"role": "user", "content": "What is 2+2?"}]
 
 
 @pytest.fixture(autouse=True)
@@ -10,7 +13,7 @@ def api_key(monkeypatch):
     monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
 
 
-def fake_post(response):
+def stub_post(monkeypatch, response):
     """Replace AsyncClient.post, recording the call and returning a canned response."""
     calls = []
 
@@ -20,7 +23,8 @@ def fake_post(response):
             raise response
         return response
 
-    return post, calls
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    return calls
 
 
 def completion(content):
@@ -31,52 +35,61 @@ def completion(content):
     )
 
 
-def test_ping_sends_the_expected_request(signed_in, monkeypatch):
-    post, calls = fake_post(completion("4"))
-    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+@pytest.mark.asyncio
+async def test_sends_the_expected_request(monkeypatch):
+    calls = stub_post(monkeypatch, completion("4"))
 
-    response = signed_in.post("/api/ai/ping")
-
-    assert response.status_code == 200
-    assert response.json() == {"reply": "4"}
+    assert await ai.complete(MESSAGES) == "4"
     assert calls[0]["url"] == ai.OPENROUTER_URL
     assert calls[0]["headers"]["Authorization"] == "Bearer test-key"
-    assert calls[0]["json"]["model"] == "openai/gpt-oss-120b"
-    assert calls[0]["json"]["messages"] == [{"role": "user", "content": "What is 2+2?"}]
+    assert calls[0]["json"] == {"model": "openai/gpt-4o-mini", "messages": MESSAGES}
 
 
-def test_timeout_surfaces_as_502(signed_in, monkeypatch):
-    post, _ = fake_post(httpx.TimeoutException("timed out"))
-    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+@pytest.mark.asyncio
+async def test_a_response_format_pins_the_provider(monkeypatch):
+    calls = stub_post(monkeypatch, completion("{}"))
+    response_format = {"type": "json_schema"}
 
-    assert signed_in.post("/api/ai/ping").status_code == 502
+    await ai.complete(MESSAGES, response_format=response_format)
 
-
-def test_upstream_500_surfaces_as_502(signed_in, monkeypatch):
-    error = httpx.Response(500, request=httpx.Request("POST", ai.OPENROUTER_URL))
-    post, _ = fake_post(error)
-    monkeypatch.setattr(httpx.AsyncClient, "post", post)
-
-    assert signed_in.post("/api/ai/ping").status_code == 502
+    assert calls[0]["json"]["response_format"] == response_format
+    # Without this OpenRouter may route to a provider that ignores the schema.
+    assert calls[0]["json"]["provider"] == {"require_parameters": True}
 
 
-def test_malformed_response_surfaces_as_502(signed_in, monkeypatch):
-    post, _ = fake_post(
-        httpx.Response(200, json={}, request=httpx.Request("POST", ai.OPENROUTER_URL))
-    )
-    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        pytest.param(httpx.TimeoutException("timed out"), id="timeout"),
+        pytest.param(httpx.ConnectError("refused"), id="connection"),
+        pytest.param(
+            httpx.Response(500, request=httpx.Request("POST", ai.OPENROUTER_URL)),
+            id="upstream 500",
+        ),
+        pytest.param(
+            httpx.Response(
+                200, json={}, request=httpx.Request("POST", ai.OPENROUTER_URL)
+            ),
+            id="malformed body",
+        ),
+    ],
+)
+async def test_upstream_failures_are_502(monkeypatch, response):
+    stub_post(monkeypatch, response)
 
-    assert signed_in.post("/api/ai/ping").status_code == 502
+    with pytest.raises(HTTPException) as raised:
+        await ai.complete(MESSAGES)
+
+    assert raised.value.status_code == 502
 
 
-def test_missing_key_fails_loudly(signed_in, monkeypatch):
+@pytest.mark.asyncio
+async def test_missing_key_fails_loudly(monkeypatch):
     monkeypatch.setattr(settings, "openrouter_api_key", "")
 
-    response = signed_in.post("/api/ai/ping")
+    with pytest.raises(HTTPException) as raised:
+        await ai.complete(MESSAGES)
 
-    assert response.status_code == 500
-    assert "OPENROUTER_API_KEY" in response.json()["detail"]
-
-
-def test_ping_requires_authentication(client):
-    assert client.post("/api/ai/ping").status_code == 401
+    assert raised.value.status_code == 500
+    assert "OPENROUTER_API_KEY" in raised.value.detail

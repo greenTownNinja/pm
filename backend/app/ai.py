@@ -1,15 +1,12 @@
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 
-from app.auth import CurrentUser
 from app.config import settings
 
-router = APIRouter(prefix="/api/ai")
-
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "openai/gpt-oss-120b"
+MODEL = "openai/gpt-4o-mini"
 TIMEOUT = 60.0
 
 
@@ -51,10 +48,3 @@ async def complete(
         raise HTTPException(
             status_code=502, detail="AI response was malformed"
         ) from exc
-
-
-@router.post("/ping")
-async def ping(_user: CurrentUser) -> dict[str, str]:
-    """Temporary proof that the OpenRouter call works. Removed in Part 10."""
-    reply = await complete([{"role": "user", "content": "What is 2+2?"}])
-    return {"reply": reply}

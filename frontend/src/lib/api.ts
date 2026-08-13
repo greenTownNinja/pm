@@ -63,3 +63,14 @@ export const moveCard = (cardId: string, columnId: string, position: number) =>
     method: "POST",
     body: JSON.stringify({ columnId, position }),
   });
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+export const fetchChatHistory = () => request<ChatMessage[]>("/chat/history");
+
+// The reply comes with the board as the AI left it, so a chat turn needs no refetch.
+export const sendChatMessage = (message: string) =>
+  request<{ reply: string; board: BoardData }>("/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });

@@ -115,15 +115,20 @@ bugbear). Keep imports sorted by ruff rather than by hand.
 
 ## AI
 
-`app/ai.py` holds `complete(messages)`: an async `httpx` POST to OpenRouter's chat
-completions endpoint with `openai/gpt-oss-120b`, returning
+`app/ai.py` holds `complete(messages, response_format)`: an async `httpx` POST to
+OpenRouter's chat completions endpoint with `MODEL`, returning
 `choices[0].message.content`. Errors are the caller's 502, not a stack trace - timeouts
 and connection failures (`httpx.HTTPError`), non-200 upstream statuses, and unparseable
 response bodies all raise `HTTPException(502)`. A missing `OPENROUTER_API_KEY` raises a
 500 naming the setting; the app still boots and serves the board without one.
 
-`POST /api/ai/ping` is a temporary proof of the live call, removed in Part 10. Tests
-monkeypatch `httpx.AsyncClient.post`, so the suite needs no network.
+`MODEL` is `openai/gpt-4o-mini`. It replaced `openai/gpt-oss-120b`, which is a reasoning
+model: some OpenRouter providers returned its analysis channel as the message content, or
+`content: null`, so roughly a third of structured-output calls failed validation. Weigh
+that before changing it again - the model has to honour strict `json_schema` on every
+provider OpenRouter might route to.
+
+Tests monkeypatch `httpx.AsyncClient.post`, so the suite needs no network.
 
 ## Chat
 

@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -20,6 +21,7 @@ from app.models import Board, Card, Message, utcnow
 from app.schemas import Action, ChatOut, ChatRequest, MessageOut, ModelReply
 
 router = APIRouter(prefix="/api/chat")
+logger = logging.getLogger(__name__)
 
 # Turns of history replayed to the model. Older messages stay in the database.
 HISTORY_LIMIT = 20
@@ -85,16 +87,18 @@ Columns are ordered as listed; each column's cardIds are in top-to-bottom order.
 
 Put any changes in `updates`, as a list applied in order:
 
-- create_card: columnId, title, and optionally details
+- create_card: columnId, title, and optionally details. Leave cardId null - the app \
+assigns the new card's id, so never invent one and never decline for want of a free id
 - edit_card: cardId, and title and/or details
 - move_card: cardId, columnId (the destination, which may be its current column), \
 and position (0 is the top; omit for the bottom)
 - delete_card: cardId
 - rename_column: columnId, title
 
-Use only ids that appear above. Set fields an action does not need to null. When the \
-user is asking a question rather than requesting a change, return no updates. \
-`reply` is always your message to the user, in plain prose without markdown."""
+When an action refers to a card or column that already exists, use its id from the \
+board above. Set every field an action does not need to null. When the user is asking \
+a question rather than requesting a change, return no updates. `reply` is always your \
+message to the user, in plain prose without markdown."""
 
 
 def resolve(
@@ -198,6 +202,8 @@ async def chat(body: ChatRequest, db: Db, user: CurrentUser) -> ChatOut:
     try:
         model_reply = ModelReply.model_validate_json(content)
     except (ValidationError, json.JSONDecodeError) as exc:
+        # Without the payload a schema violation from the model is undiagnosable.
+        logger.warning("Model response did not validate: %s", content)
         raise HTTPException(
             status_code=502, detail="AI response did not match the expected shape"
         ) from exc

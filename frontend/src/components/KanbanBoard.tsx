@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { ChatSidebar } from "@/components/ChatSidebar";
 import { KanbanColumn } from "@/components/KanbanColumn";
 import { KanbanCardPreview } from "@/components/KanbanCardPreview";
 import * as api from "@/lib/api";
@@ -28,6 +29,7 @@ export const KanbanBoard = ({ username, onSignOut }: KanbanBoardProps) => {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // The last board the server confirmed, and what a failed mutation rolls back to.
   const confirmed = useRef<BoardData>(emptyBoard);
@@ -198,7 +200,13 @@ export const KanbanBoard = ({ username, onSignOut }: KanbanBoardProps) => {
       <div className="pointer-events-none absolute left-0 top-0 h-[420px] w-[420px] -translate-x-1/3 -translate-y-1/3 rounded-full bg-[radial-gradient(circle,_rgba(32,157,215,0.25)_0%,_rgba(32,157,215,0.05)_55%,_transparent_70%)]" />
       <div className="pointer-events-none absolute bottom-0 right-0 h-[520px] w-[520px] translate-x-1/4 translate-y-1/4 rounded-full bg-[radial-gradient(circle,_rgba(117,57,145,0.18)_0%,_rgba(117,57,145,0.05)_55%,_transparent_75%)]" />
 
-      <main className="relative mx-auto flex min-h-screen max-w-[1500px] flex-col gap-10 px-6 pb-16 pt-12">
+      <main
+        className={`relative mx-auto flex min-h-screen max-w-[1500px] flex-col gap-10 px-6 pb-16 pt-12 ${
+          // On wide screens the open sidebar sits beside the board; below that it
+          // overlays, so the board keeps its full width.
+          isChatOpen ? "sm:pr-[424px]" : ""
+        }`}
+      >
         <header className="flex flex-col gap-6 rounded-[32px] border border-[var(--stroke)] bg-white/80 p-8 shadow-[var(--shadow)] backdrop-blur">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
@@ -285,6 +293,15 @@ export const KanbanBoard = ({ username, onSignOut }: KanbanBoardProps) => {
           </DragOverlay>
         </DndContext>
       </main>
+
+      <ChatSidebar
+        isOpen={isChatOpen}
+        onToggle={() => setIsChatOpen((open) => !open)}
+        onBoardUpdate={(next) => {
+          confirmed.current = next;
+          setBoard(next);
+        }}
+      />
     </div>
   );
 };
