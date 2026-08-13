@@ -295,29 +295,55 @@ messages  (id, board_id -> boards.id, role, content, created_at)
 
 **Goal**: the UI reads and writes through the API. The board is genuinely persistent.
 
-- [ ] `src/lib/api.ts` client with typed wrappers for every route, sending
+- [x] `src/lib/api.ts` client with typed wrappers for every route, sending
       `credentials: "include"`
-- [ ] `KanbanBoard` loads from `GET /api/board` on mount instead of `initialData`
-- [ ] Loading and error states for the initial fetch
-- [ ] Every mutation (rename, add, edit, delete, move) applies optimistically, calls the
+- [x] `KanbanBoard` loads from `GET /api/board` on mount instead of `initialData`
+- [x] Loading and error states for the initial fetch
+- [x] Every mutation (rename, add, edit, delete, move) applies optimistically, calls the
       API, and rolls back the local state on failure
-- [ ] Debounce column rename so typing does not fire a request per keystroke
-- [ ] Keep `initialData` only as test seed data, out of the runtime path
-- [ ] Card ids come from the server, so drop client-side `createId` for cards
+- [x] Debounce column rename so typing does not fire a request per keystroke
+- [x] Keep `initialData` only as test seed data, out of the runtime path
+- [x] Card ids come from the server, so drop client-side `createId` for cards
 
 **Tests**
 
-- [ ] vitest with a mocked fetch: board renders from the API response; each mutation issues
+- [x] vitest with a mocked fetch: board renders from the API response; each mutation issues
       the expected request; a failed request rolls the UI back
-- [ ] vitest: the loading and error states render
-- [ ] pytest integration: login, mutate through the API, and confirm `GET /api/board`
+- [x] vitest: the loading and error states render
+- [x] pytest integration: login, mutate through the API, and confirm `GET /api/board`
       reflects it
-- [ ] playwright against the real stack: log in, add a card, edit it, drag it to another
+- [x] playwright against the real stack: log in, add a card, edit it, drag it to another
       column, reload the page, and confirm every change survived
-- [ ] playwright: changes survive a container restart
+- [x] playwright: changes survive a container restart
 
 **Success criteria**: every board change persists across reload and restart. No demo data
 remains in the runtime path. All suites pass.
+
+**Notes from execution**
+
+- Card creation is the one mutation that is **not** optimistic: only the server can assign
+  the id, and inventing a temporary one would mean keeping `createId` alive purely to
+  reconcile it away. The request is local and fast, and the plan also asked for server-owned
+  card ids; this is where the two items met.
+- Rollback restores the last board the server confirmed, held in a ref, rather than a
+  snapshot taken per mutation. That is the state debounced renames and overlapping requests
+  should return to.
+- `resolveDrop` in `kanban.ts` turns a dnd-kit drop into the `{columnId, position}` the API
+  wants, reading the index from the pre-move column so it agrees with the server's
+  remove-then-insert. Unit tested alongside `moveCard`.
+- A pending debounced rename is flushed on unmount, so signing out mid-rename still saves.
+  Reloading the page within the debounce window still loses it; the e2e spec waits for the
+  PATCH rather than papering over that.
+- `initialData` moved out of `src/lib/kanban.ts` to `src/test/board-fixture.ts`, so nothing
+  in the runtime path imports demo data. `createId` is gone.
+- The e2e specs create their own uniquely-named card, act on it and delete it, because the
+  board is now shared persistent state rather than a fresh in-memory demo per test. They
+  also locate cards by `data-testid` once created: locating by text breaks the moment a card
+  is edited, since the title moves into an input value.
+- The container-restart test lives in `tests/restart.spec.ts` and skips unless
+  `PM_E2E_CONTAINER=1`, since it restarts `pm-app`. Run against the container it passes.
+- `src/test/vitest.d.ts` referenced `vitest` rather than `vitest/globals`, so `tsc` did not
+  see `describe` / `it` / `expect`. Fixed; `npx tsc --noEmit` is clean.
 
 ---
 

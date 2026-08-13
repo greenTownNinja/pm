@@ -1,8 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "@/components/AppShell";
+import { boardFixture } from "@/test/board-fixture";
 
-const respond = (ok: boolean, body: unknown) => ({ ok, status: ok ? 200 : 401, json: async () => body });
+const respond = (ok: boolean, body: unknown) => ({
+  ok,
+  status: ok ? 200 : 401,
+  json: async () => body,
+});
+
+/** The board fetch that KanbanBoard fires on mount answers from the fixture. */
+const withBoard = (handler: (path: string) => unknown) =>
+  vi.fn(async (path: string) =>
+    path === "/api/board" ? respond(true, boardFixture) : handler(path)
+  );
 
 describe("AppShell", () => {
   afterEach(() => {
@@ -21,7 +32,7 @@ describe("AppShell", () => {
   it("shows the board when the session is valid", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(respond(true, { username: "user" }))
+      withBoard(() => respond(true, { username: "user" }))
     );
 
     render(<AppShell />);
@@ -32,10 +43,11 @@ describe("AppShell", () => {
   });
 
   it("returns to the login form after signing out", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(respond(true, { username: "user" }))
-      .mockResolvedValueOnce(respond(true, { status: "ok" }));
+    const calls: string[] = [];
+    const fetchMock = withBoard((path) => {
+      calls.push(path);
+      return respond(true, path === "/api/me" ? { username: "user" } : { status: "ok" });
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<AppShell />);
@@ -44,7 +56,8 @@ describe("AppShell", () => {
     );
 
     expect(await screen.findByTestId("login-form")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenLastCalledWith(
+    expect(calls).toContain("/api/logout");
+    expect(fetchMock).toHaveBeenCalledWith(
       "/api/logout",
       expect.objectContaining({ method: "POST", credentials: "include" })
     );
