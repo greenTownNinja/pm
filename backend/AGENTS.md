@@ -10,6 +10,7 @@ pyproject.toml    uv-managed dependencies, pytest and ruff config
 app/config.py     Settings, read from the environment or the project root .env
 app/main.py       FastAPI app: session middleware, API routes, then the static mount
 app/auth.py       login / logout / me, and the require_user dependency
+app/ai.py         OpenRouter client and the temporary /api/ai/ping route
 app/board.py      board read and mutation routes
 app/db.py         engine, session factory, init_db
 app/models.py     SQLAlchemy models for the five tables
@@ -111,7 +112,19 @@ uv run ruff format .
 Rules selected: `E`, `F`, `I`, `UP`, `B` (pycodestyle, pyflakes, isort, pyupgrade,
 bugbear). Keep imports sorted by ruff rather than by hand.
 
+## AI
+
+`app/ai.py` holds `complete(messages)`: an async `httpx` POST to OpenRouter's chat
+completions endpoint with `openai/gpt-oss-120b`, returning
+`choices[0].message.content`. Errors are the caller's 502, not a stack trace - timeouts
+and connection failures (`httpx.HTTPError`), non-200 upstream statuses, and unparseable
+response bodies all raise `HTTPException(502)`. A missing `OPENROUTER_API_KEY` raises a
+500 naming the setting; the app still boots and serves the board without one.
+
+`POST /api/ai/ping` is a temporary proof of the live call, removed in Part 10. Tests
+monkeypatch `httpx.AsyncClient.post`, so the suite needs no network.
+
 ## Not built yet
 
-The AI routes land in Parts 8 and 9 of `docs/PLAN.md`. `messages` exists in the schema but
+The chat route lands in Part 9 of `docs/PLAN.md`. `messages` exists in the schema but
 nothing reads or writes it yet.

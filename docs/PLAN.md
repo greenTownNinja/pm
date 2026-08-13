@@ -351,22 +351,35 @@ remains in the runtime path. All suites pass.
 
 **Goal**: prove the OpenRouter call works, in isolation, before building anything on it.
 
-- [ ] Put a real `OPENROUTER_API_KEY` in `.env`
-- [ ] `backend/app/ai.py` with an async `httpx` client calling OpenRouter's
+- [x] Put a real `OPENROUTER_API_KEY` in `.env`
+- [x] `backend/app/ai.py` with an async `httpx` client calling OpenRouter's
       chat completions endpoint with `openai/gpt-oss-120b`
-- [ ] Read the key from settings; fail loudly at startup if the AI feature is used without it
-- [ ] Handle timeouts and non-200 responses with a clear error, not a stack trace
-- [ ] Temporary `POST /api/ai/ping` that asks the model "what is 2+2?" and returns the reply
+- [x] Read the key from settings; fail loudly at startup if the AI feature is used without it
+- [x] Handle timeouts and non-200 responses with a clear error, not a stack trace
+- [x] Temporary `POST /api/ai/ping` that asks the model "what is 2+2?" and returns the reply
 
 **Tests**
 
-- [ ] pytest with a mocked OpenRouter response: the request carries the right model,
+- [x] pytest with a mocked OpenRouter response: the request carries the right model,
       auth header, and message shape
-- [ ] pytest: a timeout and a 500 from OpenRouter both surface as a clean 502
-- [ ] Manual, live: `curl` the ping route and confirm the answer contains `4`
+- [x] pytest: a timeout and a 500 from OpenRouter both surface as a clean 502
+- [x] Manual, live: `curl` the ping route and confirm the answer contains `4`
 
 **Success criteria**: the live ping returns a correct answer from the real model. Mocked
 tests pass without network access.
+
+**Notes from execution**
+
+- `complete(messages)` is the whole client: it posts to OpenRouter, checks the status, and
+  returns `choices[0].message.content`. Part 9 builds its structured-output call on top.
+- The key is checked when the call is made, not at startup: the app has to boot and serve
+  the board without one, so "fail loudly" means a 500 naming `OPENROUTER_API_KEY` from the
+  AI route rather than a refusal to start.
+- Timeouts and connection failures are caught as `httpx.HTTPError`, and a non-200 upstream
+  is checked explicitly; both become a 502 with the reason in the detail.
+- Tests monkeypatch `httpx.AsyncClient.post`, recording the call so the model, auth header
+  and message shape are asserted on the real request the client builds. No network.
+- Live check: `POST /api/ai/ping` returned `2 + 2 = 4.` from `openai/gpt-oss-120b`.
 
 ---
 
