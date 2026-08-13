@@ -1,37 +1,359 @@
-# High level steps for project
+# Project Plan
 
-Part 1: Plan
+Detailed plan for the Project Management MVP described in AGENTS.md. Each part has a
+checklist, tests, and success criteria. Parts are executed in order; do not start a part
+until the previous part's success criteria are met.
 
-Enrich this document to plan out each of these parts in detail, with substeps listed out as a checklist to be checked off by the agent, and with tests and success critieria for each. Also create an AGENTS.md file inside the frontend directory that describes the existing code there. Ensure the user checks and approves the plan.
+## Agreed decisions
 
-Part 2: Scaffolding
+These were confirmed with the user during planning:
 
-Set up the Docker infrastructure, the backend in backend/ with FastAPI, and write the start and stop scripts in the scripts/ directory. This should serve example static HTML to confirm that a 'hello world' example works running locally and also make an API call.
+1. **Persistence**: relational tables in SQLite (not a JSON blob).
+   `users` / `boards` / `columns` / `cards` / `messages`, with integer `position`
+   ordering on columns and cards.
+2. **Auth**: HttpOnly signed session cookie. `POST /api/login` sets it, `POST /api/logout`
+   clears it, a FastAPI dependency guards every other `/api` route.
+3. **Frontend build**: Next.js static export (`output: "export"`). FastAPI serves the
+   exported `out/` directory at `/`. One process, one container. No SSR, no server
+   actions, no Next route handlers - all data flows through `/api`.
+4. **Chat history**: persisted in SQLite, keyed to the board, replayed to the model each turn.
 
-Part 3: Add in Frontend
+Additional decisions made while planning, flagged here for visibility:
 
-Now update so that the frontend is statically built and served, so that the app has the demo Kanban board displayed at /. Comprehensive unit and integration tests.
+5. **DB access layer**: SQLAlchemy 2.0 ORM. Ordering, reparenting and cascade deletes
+   across four tables are enough relational work to justify it over raw `sqlite3`.
+6. **Session implementation**: Starlette `SessionMiddleware` (itsdangerous-signed cookie).
+   No new dependency beyond what FastAPI already pulls in.
+7. **API shape**: the API speaks the frontend's existing `BoardData` shape
+   (`{columns: [...], cards: {...}}`). The relational schema is an implementation detail
+   assembled on read and diffed on write. This keeps the frontend, the tests, and the
+   AI prompt all working against one stable contract.
 
-Part 4: Add in a fake user sign in experience
+## Gaps found in the starting frontend
 
-Now update so that on first hitting /, you need to log in with dummy credentials ("user", "password") in order to see the Kanban, and you can log out. Comprehensive tests.
+Recorded during planning; addressed in the parts noted.
 
-Part 5: Database modeling
+- **Card editing is missing.** The business requirements say cards can be edited, but the
+  demo only supports add, delete, and drag. Added in Part 3.
+- Column rename and card delete already work (both in `KanbanBoard.tsx`), so Parts 3 and 7
+  need to persist them rather than build them.
+- `playwright.config.ts` starts `next dev` on port 3000. From Part 3 onward the e2e suite
+  must run against the FastAPI-served static build instead.
+- `layout.tsx` uses `next/font/google`, which downloads fonts at build time. The Docker
+  build therefore needs network access, or the fonts need self-hosting. Resolved in Part 3.
+- There is **no `.env` in the project root** yet, despite AGENTS.md referring to one.
+  Created in Part 2, populated with a real key before Part 8.
 
-Now propose a database schema for the Kanban, saving it as JSON. Document the database approach in docs/ and get user sign off.
+---
 
-Part 6: Backend
+## Part 1: Plan
 
-Now add API routes to allow the backend to read and change the Kanban for a given user; test this thoroughly with backend unit tests. The database should be created if it doesn't exist.
+**Goal**: a reviewed, approved plan and an accurate description of the existing frontend.
 
-Part 7: Frontend + Backend
+- [x] Review AGENTS.md and the existing frontend code
+- [x] Resolve open design questions with the user
+- [x] Enrich `docs/PLAN.md` with per-part checklists, tests, and success criteria
+- [x] Write `frontend/AGENTS.md` describing the existing code
+- [ ] User reviews and approves this plan
 
-Now have the frontend actually use the backend API, so that the app is a proper persistent Kanban board. Test very throughly.
+**Success criteria**: user has explicitly approved this document.
 
-Part 8: AI connectivity
+---
 
-Now allow the backend to make an AI call via OpenRouter. Test connectivity with a simple "2+2" test and ensure the AI call is working.
+## Part 2: Scaffolding
 
-Part 9: Now extend the backend call so that it always calls the AI with the JSON of the Kanban board, plus the user's question (and conversation history). The AI should respond with Structured Outputs that includes the response to the user and optionaly an update to the Kanban. Test thoroughly.
+**Goal**: a Docker container that runs FastAPI, serves a placeholder static page at `/`,
+and answers an API call. No Kanban, no database yet.
 
-Part 10: Now add a beautiful sidebar widget to the UI supporting full AI chat, and allowing the LLM (as it determines) to update the Kanban based on its Structured Outputs. If the AI updates the Kanban, then the UI should refresh automatically.
+- [ ] Create `backend/pyproject.toml` (uv-managed) with `fastapi`, `uvicorn[standard]`,
+      `sqlalchemy`, `httpx`, `pydantic-settings`, and dev group `pytest`, `pytest-asyncio`
+- [ ] Create `backend/app/main.py` with the FastAPI app
+- [ ] Add `GET /api/health` returning `{"status": "ok"}`
+- [ ] Mount a `StaticFiles` app at `/` serving `backend/static/`, with an index fallback
+      so client-side routes resolve to `index.html`
+- [ ] Add a placeholder `backend/static/index.html` that calls `/api/health` and renders
+      the result, proving the static-plus-API round trip
+- [ ] Create `.env` in the project root with `OPENROUTER_API_KEY=` (empty for now) and
+      `SESSION_SECRET=`; confirm `.gitignore` excludes it
+- [ ] Load settings from `.env` via `pydantic-settings`
+- [ ] Write `Dockerfile`: `uv` base image, install deps from `pyproject.toml`, copy the
+      backend, expose 8000, run uvicorn
+- [ ] Write `docker-compose.yml` mounting the SQLite data directory as a named volume and
+      passing `.env` through
+- [ ] Write `scripts/start.sh`, `scripts/stop.sh` (Mac/Linux) and `scripts/start.ps1`,
+      `scripts/stop.ps1` (Windows); all four build and run via compose
+- [ ] Write `backend/AGENTS.md` describing the backend layout
+
+**Tests**
+
+- [ ] `pytest` unit test: `GET /api/health` returns 200 and `{"status": "ok"}`
+- [ ] `pytest` unit test: `GET /` returns 200 and `text/html`
+- [ ] Manual: `scripts/start.sh`, load `http://localhost:8000`, see the health result
+      rendered; `scripts/stop.sh` stops the container cleanly
+
+**Success criteria**: a fresh clone plus `scripts/start.sh` yields a working page at
+`http://localhost:8000` that displays live data fetched from `/api/health`. All pytest
+tests pass inside the container.
+
+---
+
+## Part 3: Add in Frontend
+
+**Goal**: the real Kanban demo, statically built and served by FastAPI at `/`.
+Still in-memory on the client, no persistence.
+
+- [ ] Set `output: "export"` and `images: { unoptimized: true }` in `next.config.ts`
+- [ ] Verify `next build` produces `out/` cleanly; fix any static-export incompatibilities
+- [ ] Resolve the `next/font/google` build-time fetch: either allow network during the
+      Docker build stage or vendor the two fonts locally. Prefer vendoring - it makes the
+      build reproducible and offline-capable
+- [ ] Add **card editing** to the frontend: click a card title or details to edit inline,
+      with an `onEditCard(cardId, title, details)` handler on `KanbanBoard`
+- [ ] Add a Node build stage to the `Dockerfile`: `npm ci`, `npm run build`, copy `out/`
+      into the Python stage's `backend/static/`
+- [ ] Point the static mount at the exported build, keeping `/api/*` routed to FastAPI
+- [ ] Update `playwright.config.ts` to run against the FastAPI-served build
+      (`baseURL` `http://127.0.0.1:8000`, `webServer` starts the backend) rather than `next dev`
+
+**Tests**
+
+- [ ] Existing vitest suites still pass (`npm run test:unit`)
+- [ ] New vitest tests for card editing: editing a title updates the card; editing details
+      updates the card; cancelling leaves the card unchanged
+- [ ] Existing playwright suites pass against the served build
+- [ ] New playwright test: edit a card end to end
+- [ ] `pytest`: `GET /` serves the Next export; a known asset path returns 200;
+      an unknown path falls back to `index.html`
+
+**Success criteria**: `scripts/start.sh` then `http://localhost:8000` shows the full
+Kanban board with working drag/drop, rename, add, delete, and edit. `npm run test:all`
+and `pytest` both pass.
+
+---
+
+## Part 4: Fake user sign in
+
+**Goal**: `/` requires login before the board is visible; logout returns to the login screen.
+
+- [ ] Add `SessionMiddleware` with `SESSION_SECRET` from `.env`; cookie flagged
+      `httponly`, `samesite=lax`
+- [ ] `POST /api/login` accepts `{username, password}`, validates against the hardcoded
+      `user` / `password` for now, sets the session, returns `{"username": ...}`
+- [ ] `POST /api/logout` clears the session
+- [ ] `GET /api/me` returns the current user or 401
+- [ ] `require_user` FastAPI dependency returning 401 when unauthenticated; apply to every
+      `/api` route except login, logout, and health
+- [ ] Frontend `LoginForm` component styled to the project color scheme
+- [ ] Frontend gates on `GET /api/me` at mount: show a loading state, then the login form
+      or the board
+- [ ] Logout control in the board header
+
+**Tests**
+
+- [ ] `pytest`: correct credentials return 200 and set a cookie
+- [ ] `pytest`: wrong password returns 401 and sets no cookie
+- [ ] `pytest`: a guarded route returns 401 without a cookie and 200 with one
+- [ ] `pytest`: after logout, the guarded route returns 401 again
+- [ ] `pytest`: the session cookie is HttpOnly
+- [ ] vitest: `LoginForm` submits credentials and surfaces an error on failure
+- [ ] playwright: visiting `/` shows the login form; logging in shows the board; reloading
+      keeps the session; logging out returns to the login form
+
+**Success criteria**: the board is unreachable without logging in, the session survives a
+page reload, and logout invalidates it. All suites pass.
+
+---
+
+## Part 5: Database modeling
+
+**Goal**: an agreed schema, documented and signed off before any DB code is written.
+
+- [ ] Write `docs/DATABASE.md` covering the tables below, the ordering strategy, cascade
+      rules, the seed behaviour for a new user's board, and the `BoardData` JSON shape the
+      API exposes
+- [ ] Include a worked example: the seeded five-column board as both rows and API JSON
+- [ ] **Get explicit user sign-off on `docs/DATABASE.md` before starting Part 6**
+
+Proposed schema:
+
+```
+users     (id, username UNIQUE, password_hash, created_at)
+boards    (id, user_id -> users.id, title, created_at, updated_at)
+columns   (id, board_id -> boards.id, title, position)
+cards     (id, column_id -> columns.id, title, details, position)
+messages  (id, board_id -> boards.id, role, content, created_at)
+```
+
+- Card order within a column, and column order within a board, are given by `position`
+  (0-based, rewritten contiguously on every mutation - simple and correct at MVP scale).
+- `ON DELETE CASCADE` from boards to columns to cards and messages.
+- `password_hash` exists so multiple real users are supportable later; the MVP seeds a
+  single `user` row and still validates against it rather than special-casing login.
+- A new user gets one board seeded with the five columns from the existing demo.
+
+**Tests**: none (documentation part).
+
+**Success criteria**: user has approved `docs/DATABASE.md`.
+
+---
+
+## Part 6: Backend
+
+**Goal**: full CRUD over the board through the API, thoroughly tested. Frontend untouched.
+
+- [ ] SQLAlchemy models for the five tables
+- [ ] Create the SQLite file and tables at startup if absent; store under a mounted volume
+      path so data survives container restarts
+- [ ] Seed the `user` row and its board with the five demo columns on first run
+- [ ] `GET /api/board` returns the board in `BoardData` shape
+- [ ] `PATCH /api/columns/{id}` renames a column
+- [ ] `POST /api/columns/{id}/cards` creates a card at the end of the column
+- [ ] `PATCH /api/cards/{id}` edits title and/or details
+- [ ] `DELETE /api/cards/{id}` deletes a card and closes the position gap
+- [ ] `POST /api/cards/{id}/move` takes `{columnId, position}` and reorders both the source
+      and target columns
+- [ ] Every route scoped to the session user; a board or card belonging to another user
+      returns 404
+- [ ] Pydantic request and response models throughout
+
+**Tests** (pytest, against a temporary SQLite file per test)
+
+- [ ] The database and tables are created when the file does not exist
+- [ ] Seeding is idempotent across restarts
+- [ ] `GET /api/board` returns the seeded shape, columns and cards in position order
+- [ ] Column rename persists
+- [ ] Card create appends at the end and returns the new id
+- [ ] Card edit persists title and details independently
+- [ ] Card delete removes it and leaves positions contiguous
+- [ ] Move within a column reorders correctly, including to first and to last
+- [ ] Move across columns removes from source, inserts at the requested index, and leaves
+      both columns contiguous
+- [ ] Every route returns 401 unauthenticated
+- [ ] Cross-user access returns 404
+- [ ] Invalid ids, out-of-range positions, and empty titles return 4xx rather than 500
+
+**Success criteria**: the full pytest suite passes, and a manual `curl` sequence
+(login, read, mutate, read back) shows the mutation persisted across a container restart.
+
+---
+
+## Part 7: Frontend + Backend
+
+**Goal**: the UI reads and writes through the API. The board is genuinely persistent.
+
+- [ ] `src/lib/api.ts` client with typed wrappers for every route, sending
+      `credentials: "include"`
+- [ ] `KanbanBoard` loads from `GET /api/board` on mount instead of `initialData`
+- [ ] Loading and error states for the initial fetch
+- [ ] Every mutation (rename, add, edit, delete, move) applies optimistically, calls the
+      API, and rolls back the local state on failure
+- [ ] Debounce column rename so typing does not fire a request per keystroke
+- [ ] Keep `initialData` only as test seed data, out of the runtime path
+- [ ] Card ids come from the server, so drop client-side `createId` for cards
+
+**Tests**
+
+- [ ] vitest with a mocked fetch: board renders from the API response; each mutation issues
+      the expected request; a failed request rolls the UI back
+- [ ] vitest: the loading and error states render
+- [ ] pytest integration: login, mutate through the API, and confirm `GET /api/board`
+      reflects it
+- [ ] playwright against the real stack: log in, add a card, edit it, drag it to another
+      column, reload the page, and confirm every change survived
+- [ ] playwright: changes survive a container restart
+
+**Success criteria**: every board change persists across reload and restart. No demo data
+remains in the runtime path. All suites pass.
+
+---
+
+## Part 8: AI connectivity
+
+**Goal**: prove the OpenRouter call works, in isolation, before building anything on it.
+
+- [ ] Put a real `OPENROUTER_API_KEY` in `.env`
+- [ ] `backend/app/ai.py` with an async `httpx` client calling OpenRouter's
+      chat completions endpoint with `openai/gpt-oss-120b`
+- [ ] Read the key from settings; fail loudly at startup if the AI feature is used without it
+- [ ] Handle timeouts and non-200 responses with a clear error, not a stack trace
+- [ ] Temporary `POST /api/ai/ping` that asks the model "what is 2+2?" and returns the reply
+
+**Tests**
+
+- [ ] pytest with a mocked OpenRouter response: the request carries the right model,
+      auth header, and message shape
+- [ ] pytest: a timeout and a 500 from OpenRouter both surface as a clean 502
+- [ ] Manual, live: `curl` the ping route and confirm the answer contains `4`
+
+**Success criteria**: the live ping returns a correct answer from the real model. Mocked
+tests pass without network access.
+
+---
+
+## Part 9: AI over the board
+
+**Goal**: the model sees the board and the conversation, and answers with a structured
+response that may include board updates.
+
+- [ ] Define the response schema: `{reply: string, updates: Action[] | null}` where each
+      action is one of `create_card`, `edit_card`, `move_card`, `delete_card`,
+      `rename_column`, each with the fields that operation needs
+- [ ] Request Structured Outputs via `response_format: {type: "json_schema", strict: true}`.
+      **Verify OpenRouter honours strict json_schema for this model early in the part** - if
+      it does not, fall back to tool calling with the same schema, and record which path was
+      taken in `docs/`
+- [ ] System prompt: role, the current board JSON, the available actions, and an instruction
+      to return no updates when the user is only asking a question
+- [ ] `POST /api/chat` takes `{message}`, loads history and the board, calls the model,
+      applies any returned actions in a single transaction, persists both messages, and
+      returns `{reply, board}` with the post-update board
+- [ ] `GET /api/chat/history` returns the stored conversation
+- [ ] Validate every action against the real board before applying; reject unknown card or
+      column ids rather than half-applying a batch
+- [ ] Cap the history sent to the model at a fixed number of recent turns
+
+**Tests**
+
+- [ ] pytest with mocked model responses, one per action type, asserting the board changes
+      exactly as expected
+- [ ] pytest: a multi-action response applies all actions atomically
+- [ ] pytest: an action referencing an unknown id rolls back the whole batch and returns an error
+- [ ] pytest: a reply with `updates: null` leaves the board untouched
+- [ ] pytest: malformed model JSON returns a clean error, not a 500
+- [ ] pytest: history is persisted and replayed in order, and is trimmed at the cap
+- [ ] Manual, live: "move the QA card to Done" actually moves it; "what is on my board?"
+      answers without changing anything
+
+**Success criteria**: live requests both answer questions and correctly modify the board.
+All mocked tests pass.
+
+---
+
+## Part 10: AI chat sidebar
+
+**Goal**: the chat UI, with the board refreshing when the AI changes it.
+
+- [ ] `ChatSidebar` component: message list, input, send button, collapsible panel, styled
+      to the project color scheme (purple for the send action, blue for accents,
+      navy headings, gray supporting text)
+- [ ] Load history from `GET /api/chat/history` on mount
+- [ ] Optimistic user message, then a pending indicator while the model responds
+- [ ] Apply the `board` returned by `POST /api/chat` directly to board state so the Kanban
+      refreshes without a second request
+- [ ] Error state when the request fails, with the user's message preserved for retry
+- [ ] Responsive: the sidebar overlays rather than crushes the board on narrow viewports
+- [ ] Remove the temporary `/api/ai/ping` route from Part 8
+
+**Tests**
+
+- [ ] vitest with a mocked API: sending a message renders the user message then the reply
+- [ ] vitest: a response containing a board update re-renders the Kanban
+- [ ] vitest: history loads on mount
+- [ ] vitest: a failed send shows an error and keeps the input content
+- [ ] playwright against the real stack: open the sidebar, ask the AI to add a card, and
+      confirm both the reply and the new card appear; reload and confirm both persisted
+- [ ] Full `npm run test:all` and `pytest` green
+
+**Success criteria**: a user can log in, chat with the AI, watch it modify the board live,
+and find every change still there after a restart. All suites pass. `README.md` documents
+setup and the start/stop scripts, minimally.
