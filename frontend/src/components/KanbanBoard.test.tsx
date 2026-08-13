@@ -43,4 +43,51 @@ describe("KanbanBoard", () => {
 
     expect(within(column).queryByText("New card")).not.toBeInTheDocument();
   });
+
+  it("edits a card title", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+    await userEvent.click(
+      within(column).getByRole("button", { name: /edit align roadmap themes/i })
+    );
+
+    const titleInput = within(column).getByLabelText("Edit title");
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Renamed card");
+    await userEvent.click(within(column).getByRole("button", { name: /save card/i }));
+
+    expect(within(column).getByText("Renamed card")).toBeInTheDocument();
+    expect(within(column).queryByText("Align roadmap themes")).not.toBeInTheDocument();
+  });
+
+  it("edits card details", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+    await userEvent.click(
+      within(column).getByRole("button", { name: /edit align roadmap themes/i })
+    );
+
+    const detailsInput = within(column).getByLabelText("Edit details");
+    await userEvent.clear(detailsInput);
+    await userEvent.type(detailsInput, "Updated details");
+    await userEvent.click(within(column).getByRole("button", { name: /save card/i }));
+
+    expect(within(column).getByText("Updated details")).toBeInTheDocument();
+  });
+
+  it("leaves the card unchanged when editing is cancelled", async () => {
+    render(<KanbanBoard />);
+    const column = getFirstColumn();
+    await userEvent.click(
+      within(column).getByRole("button", { name: /edit align roadmap themes/i })
+    );
+
+    const titleInput = within(column).getByLabelText("Edit title");
+    await userEvent.clear(titleInput);
+    await userEvent.type(titleInput, "Discarded");
+    await userEvent.click(within(column).getByRole("button", { name: /cancel/i }));
+
+    expect(within(column).getByText("Align roadmap themes")).toBeInTheDocument();
+    expect(within(column).queryByText("Discarded")).not.toBeInTheDocument();
+  });
 });

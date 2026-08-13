@@ -177,3 +177,7 @@ cython_debug/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Next static export, built into backend/static by npm run build:static
+backend/static/*
+!backend/static/.gitkeep

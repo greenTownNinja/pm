@@ -18,11 +18,16 @@ class SPAStaticFiles(StaticFiles):
 
     async def get_response(self, path: str, scope: Scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
         except HTTPException as exc:
             if exc.status_code != 404:
                 raise
             return await super().get_response("index.html", scope)
+        # With html=True a missing path is served as the export's own 404.html rather
+        # than raised, so the status has to be checked too.
+        if response.status_code == 404:
+            return await super().get_response("index.html", scope)
+        return response
 
 
 # Mounted last so it only catches paths the API routes above did not claim.

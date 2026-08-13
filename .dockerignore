@@ -7,6 +7,8 @@ frontend/out
 frontend/test-results
 backend/.venv
 backend/data
+# Built into the image from the frontend stage, never copied from the host.
+backend/static
 **/__pycache__
 **/.pytest_cache
 .env

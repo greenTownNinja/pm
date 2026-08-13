@@ -91,8 +91,9 @@ and answers an API call. No Kanban, no database yet.
 - [x] `pytest` unit test: an unknown path falls back to `index.html`
 - [x] Manual: `scripts/start.sh` builds and runs, `/api/health` and `/` both answer over
       HTTP from the container, `scripts/stop.sh` removes it cleanly, and a restart works
-- [ ] Manual: confirm in a browser that the page *renders* the health result. Verified by
-      curl only so far - the Chrome extension was not connected. Pending a visual check
+- [x] Manual: confirm in a browser that the page *renders* the health result. Superseded
+      by Part 3 - the placeholder page is gone and `/` now serves the real board, which is
+      what gets checked visually instead
 
 **Success criteria**: a fresh clone plus `scripts/start.sh` yields a working page at
 `http://localhost:8000` that displays live data fetched from `/api/health`. All pytest
@@ -105,32 +106,49 @@ tests pass inside the container.
 **Goal**: the real Kanban demo, statically built and served by FastAPI at `/`.
 Still in-memory on the client, no persistence.
 
-- [ ] Set `output: "export"` and `images: { unoptimized: true }` in `next.config.ts`
-- [ ] Verify `next build` produces `out/` cleanly; fix any static-export incompatibilities
-- [ ] Resolve the `next/font/google` build-time fetch: either allow network during the
+- [x] Set `output: "export"` and `images: { unoptimized: true }` in `next.config.ts`
+- [x] Verify `next build` produces `out/` cleanly; fix any static-export incompatibilities
+- [x] Resolve the `next/font/google` build-time fetch: either allow network during the
       Docker build stage or vendor the two fonts locally. Prefer vendoring - it makes the
       build reproducible and offline-capable
-- [ ] Add **card editing** to the frontend: click a card title or details to edit inline,
+- [x] Add **card editing** to the frontend: click a card title or details to edit inline,
       with an `onEditCard(cardId, title, details)` handler on `KanbanBoard`
-- [ ] Add a Node build stage to the `Dockerfile`: `npm ci`, `npm run build`, copy `out/`
+- [x] Add a Node build stage to the `Dockerfile`: `npm ci`, `npm run build`, copy `out/`
       into the Python stage's `backend/static/`
-- [ ] Point the static mount at the exported build, keeping `/api/*` routed to FastAPI
-- [ ] Update `playwright.config.ts` to run against the FastAPI-served build
+- [x] Point the static mount at the exported build, keeping `/api/*` routed to FastAPI
+- [x] Update `playwright.config.ts` to run against the FastAPI-served build
       (`baseURL` `http://127.0.0.1:8000`, `webServer` starts the backend) rather than `next dev`
 
 **Tests**
 
-- [ ] Existing vitest suites still pass (`npm run test:unit`)
-- [ ] New vitest tests for card editing: editing a title updates the card; editing details
+- [x] Existing vitest suites still pass (`npm run test:unit`)
+- [x] New vitest tests for card editing: editing a title updates the card; editing details
       updates the card; cancelling leaves the card unchanged
-- [ ] Existing playwright suites pass against the served build
-- [ ] New playwright test: edit a card end to end
-- [ ] `pytest`: `GET /` serves the Next export; a known asset path returns 200;
+- [x] Existing playwright suites pass against the served build
+- [x] New playwright test: edit a card end to end
+- [x] `pytest`: `GET /` serves the Next export; a known asset path returns 200;
       an unknown path falls back to `index.html`
 
 **Success criteria**: `scripts/start.sh` then `http://localhost:8000` shows the full
 Kanban board with working drag/drop, rename, add, delete, and edit. `npm run test:all`
 and `pytest` both pass.
+
+**Notes from execution**
+
+- Fonts are vendored as latin-subset variable woff2 under `frontend/src/app/fonts/` and
+  loaded with `next/font/local`. The Docker build now runs with no network access.
+- The SPA fallback needed fixing. The export ships its own `404.html`, and
+  `StaticFiles(html=True)` *returns* that as a 404 response rather than raising, so the
+  old `except HTTPException` never fired and unknown paths 404'd. `SPAStaticFiles` now
+  checks the response status too.
+- `backend/static/` is a build artifact and is gitignored apart from `.gitkeep`, which
+  keeps the directory present so the static mount resolves on a fresh clone.
+  `npm run build:static` builds and copies it there for local runs; the Docker build
+  copies `out/` across stages instead.
+- Card editing disables dragging on the card being edited, since the whole article is the
+  drag handle.
+- `uv sync --frozen` with `uv.lock` in the image, so the build uses locked versions and
+  fails loudly on drift.
 
 ---
 
