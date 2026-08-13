@@ -2,16 +2,18 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
+const renderBoard = () => render(<KanbanBoard username="user" onSignOut={() => {}} />);
+
 const getFirstColumn = () => screen.getAllByTestId(/column-/i)[0];
 
 describe("KanbanBoard", () => {
   it("renders five columns", () => {
-    render(<KanbanBoard />);
+    renderBoard();
     expect(screen.getAllByTestId(/column-/i)).toHaveLength(5);
   });
 
   it("renames a column", async () => {
-    render(<KanbanBoard />);
+    renderBoard();
     const column = getFirstColumn();
     const input = within(column).getByLabelText("Column title");
     await userEvent.clear(input);
@@ -20,7 +22,7 @@ describe("KanbanBoard", () => {
   });
 
   it("adds and removes a card", async () => {
-    render(<KanbanBoard />);
+    renderBoard();
     const column = getFirstColumn();
     const addButton = within(column).getByRole("button", {
       name: /add a card/i,
@@ -45,7 +47,7 @@ describe("KanbanBoard", () => {
   });
 
   it("edits a card title", async () => {
-    render(<KanbanBoard />);
+    renderBoard();
     const column = getFirstColumn();
     await userEvent.click(
       within(column).getByRole("button", { name: /edit align roadmap themes/i })
@@ -61,7 +63,7 @@ describe("KanbanBoard", () => {
   });
 
   it("edits card details", async () => {
-    render(<KanbanBoard />);
+    renderBoard();
     const column = getFirstColumn();
     await userEvent.click(
       within(column).getByRole("button", { name: /edit align roadmap themes/i })
@@ -76,7 +78,7 @@ describe("KanbanBoard", () => {
   });
 
   it("leaves the card unchanged when editing is cancelled", async () => {
-    render(<KanbanBoard />);
+    renderBoard();
     const column = getFirstColumn();
     await userEvent.click(
       within(column).getByRole("button", { name: /edit align roadmap themes/i })

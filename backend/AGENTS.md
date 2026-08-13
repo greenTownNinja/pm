@@ -8,7 +8,8 @@ Dependencies are managed with `uv`; the app runs in a Docker container.
 ```
 pyproject.toml    uv-managed dependencies, pytest and ruff config
 app/config.py     Settings, read from the environment or the project root .env
-app/main.py       FastAPI app: API routes, then the static mount
+app/main.py       FastAPI app: session middleware, API routes, then the static mount
+app/auth.py       login / logout / me, and the require_user dependency
 static/           the Next static export, served at / (build artifact, gitignored)
 tests/            pytest suite
 ```
@@ -20,11 +21,23 @@ tests/            pytest suite
 - `SPAStaticFiles` falls back to `index.html` so client-side routes resolve. It handles
   both 404 shapes: `StaticFiles` raises for a missing path, but with `html=True` it serves
   the export's own `404.html` as a 404 *response* instead, so the status is checked too.
+  Paths under `api/` never fall back - an unmatched API path is a 404, not the board HTML.
 - Configuration goes through `app.config.settings`, never `os.environ` directly. The
   project root `.env` supplies `OPENROUTER_API_KEY` and `SESSION_SECRET`; in the container
   they arrive as environment variables via `--env-file`.
 - `STATIC_DIR` and other paths come from `app/config.py`, resolved from `__file__`, so they
   work the same locally and in the container.
+
+## Auth
+
+Starlette `SessionMiddleware` signs an HttpOnly, SameSite=Lax cookie with
+`settings.session_secret`. `POST /api/login` validates against the hardcoded `user` /
+`password` in `app/auth.py` (Part 6 replaces this with a users table) and writes
+`username` into the session; `POST /api/logout` clears it.
+
+Every `/api` route except `login`, `logout` and `health` takes the current user through the
+`CurrentUser` annotation (`Annotated[User, Depends(require_user)]`), which 401s when there
+is no session. New routes added in later parts follow that pattern.
 
 ## Static files
 
@@ -67,4 +80,4 @@ bugbear). Keep imports sorted by ruff rather than by hand.
 
 ## Not built yet
 
-Database, auth, board routes and AI live in Parts 4 through 9 of `docs/PLAN.md`.
+Database, board routes and AI live in Parts 5 through 9 of `docs/PLAN.md`.

@@ -156,32 +156,48 @@ and `pytest` both pass.
 
 **Goal**: `/` requires login before the board is visible; logout returns to the login screen.
 
-- [ ] Add `SessionMiddleware` with `SESSION_SECRET` from `.env`; cookie flagged
+- [x] Add `SessionMiddleware` with `SESSION_SECRET` from `.env`; cookie flagged
       `httponly`, `samesite=lax`
-- [ ] `POST /api/login` accepts `{username, password}`, validates against the hardcoded
+- [x] `POST /api/login` accepts `{username, password}`, validates against the hardcoded
       `user` / `password` for now, sets the session, returns `{"username": ...}`
-- [ ] `POST /api/logout` clears the session
-- [ ] `GET /api/me` returns the current user or 401
-- [ ] `require_user` FastAPI dependency returning 401 when unauthenticated; apply to every
+- [x] `POST /api/logout` clears the session
+- [x] `GET /api/me` returns the current user or 401
+- [x] `require_user` FastAPI dependency returning 401 when unauthenticated; apply to every
       `/api` route except login, logout, and health
-- [ ] Frontend `LoginForm` component styled to the project color scheme
-- [ ] Frontend gates on `GET /api/me` at mount: show a loading state, then the login form
+- [x] Frontend `LoginForm` component styled to the project color scheme
+- [x] Frontend gates on `GET /api/me` at mount: show a loading state, then the login form
       or the board
-- [ ] Logout control in the board header
+- [x] Logout control in the board header
 
 **Tests**
 
-- [ ] `pytest`: correct credentials return 200 and set a cookie
-- [ ] `pytest`: wrong password returns 401 and sets no cookie
-- [ ] `pytest`: a guarded route returns 401 without a cookie and 200 with one
-- [ ] `pytest`: after logout, the guarded route returns 401 again
-- [ ] `pytest`: the session cookie is HttpOnly
-- [ ] vitest: `LoginForm` submits credentials and surfaces an error on failure
-- [ ] playwright: visiting `/` shows the login form; logging in shows the board; reloading
+- [x] `pytest`: correct credentials return 200 and set a cookie
+- [x] `pytest`: wrong password returns 401 and sets no cookie
+- [x] `pytest`: a guarded route returns 401 without a cookie and 200 with one
+- [x] `pytest`: after logout, the guarded route returns 401 again
+- [x] `pytest`: the session cookie is HttpOnly
+- [x] vitest: `LoginForm` submits credentials and surfaces an error on failure
+- [x] playwright: visiting `/` shows the login form; logging in shows the board; reloading
       keeps the session; logging out returns to the login form
 
 **Success criteria**: the board is unreachable without logging in, the session survives a
 page reload, and logout invalidates it. All suites pass.
+
+**Notes from execution**
+
+- The SPA fallback was masking missing API routes: an unmatched `/api/...` path fell
+  through to the static mount and returned `index.html` with a 200, so `GET /api/me`
+  "succeeded" before the route existed. `SPAStaticFiles.fallback` now 404s anything under
+  `api/` and only falls back to `index.html` for client-side routes. Found because a stale
+  Part 3 container was still holding port 8000 and answering `/api/me` with the board HTML.
+- `itsdangerous` added as an explicit dependency; `SessionMiddleware` needs it and it was
+  not already pulled in.
+- `AppShell` owns the auth state (loading / login form / board) and passes `username` and
+  `onSignOut` to `KanbanBoard`, which keeps `KanbanBoard` about the board.
+- Next injects its own `role="alert"` route announcer, so e2e assertions on the login error
+  are scoped to `data-testid="login-form"`.
+- Playwright's `reuseExistingServer: true` will silently reuse a running `pm-app`
+  container on port 8000. Stop the container before running the e2e suite.
 
 ---
 

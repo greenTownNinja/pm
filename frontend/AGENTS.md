@@ -1,21 +1,35 @@
 # Frontend
 
 Next.js 16 (App Router) + React 19 + Tailwind CSS 4 + TypeScript. Built as a static
-export and served by FastAPI at `/`. Still a frontend-only Kanban demo: all state lives in
-React and is lost on reload. Parts 4, 7 and 10 of `docs/PLAN.md` connect it to the
-backend.
+export and served by FastAPI at `/`. Sign in goes through the API; the board itself is
+still client-only state, lost on reload. Parts 7 and 10 of `docs/PLAN.md` connect the board
+and the chat to the backend.
 
 ## Layout
 
 ```
-src/app/          layout.tsx (fonts, metadata), page.tsx (renders KanbanBoard), globals.css
+src/app/          layout.tsx (fonts, metadata), page.tsx (renders AppShell), globals.css
 src/app/fonts/    vendored woff2 files, loaded via next/font/local
-src/components/   KanbanBoard, KanbanColumn, KanbanCard, KanbanCardPreview, NewCardForm
+src/components/   AppShell, LoginForm, KanbanBoard, KanbanColumn, KanbanCard,
+                  KanbanCardPreview, NewCardForm
 src/lib/          kanban.ts - types, seed data, move logic, id generation
+                  api.ts - typed fetch wrappers for /api
 src/test/         vitest setup
 scripts/          copy-export.mjs - copies out/ into backend/static/
-tests/            playwright e2e specs
+tests/            playwright e2e specs, helpers.ts (signIn)
 ```
+
+## Auth
+
+`AppShell` (`"use client"`) is the only thing `page.tsx` renders. It calls `me()` on mount
+and shows a loading state, then either `LoginForm` or `KanbanBoard`. Signing out calls
+`logout()` and drops back to the form. `KanbanBoard` takes `username` and `onSignOut` and
+renders the sign-out control in its header; it knows nothing else about auth.
+
+`src/lib/api.ts` wraps `fetch` with `credentials: "include"` so the session cookie travels,
+and throws the API's `detail` message on a non-2xx. `me()` is the exception: it returns
+`null` on 401 rather than throwing, since "not signed in" is a normal state. Part 7 adds
+the board routes to this module.
 
 ## Data model
 
@@ -42,7 +56,8 @@ when the ids do not resolve. Unit tested in `src/lib/kanban.test.ts`.
 
 ## Components
 
-**`KanbanBoard`** (`"use client"`) owns all board state and every handler:
+**`KanbanBoard`** (`"use client"`) takes `username` / `onSignOut` and owns all board state
+and every handler:
 `handleDragStart` / `handleDragEnd`, `handleRenameColumn`, `handleAddCard`,
 `handleDeleteCard`. It sets up `DndContext` with a `PointerSensor` (6px activation
 distance) and `closestCorners` collision detection, and renders a `DragOverlay`.
@@ -83,11 +98,14 @@ as latin-subset variable woff2 files in `src/app/fonts/` and loaded with
 - `npm run test:unit` - vitest + Testing Library, jsdom, `globals: true` (no imports needed
   for `describe` / `it` / `expect`), `@` aliased to `src`. Only matches `src/**/*.test.*`.
 - `npm run test:e2e` - playwright, chromium only. Drag/drop is exercised with real
-  `page.mouse` movements in steps, because dnd-kit ignores instantaneous jumps.
+  `page.mouse` movements in steps, because dnd-kit ignores instantaneous jumps. Every board
+  spec signs in first via `tests/helpers.ts`. Assertions on the login error are scoped to
+  `data-testid="login-form"`, because Next renders its own `role="alert"` route announcer.
 - `npm run test:all` - both.
 
-`playwright.config.ts` currently starts `next dev` on port 3000. From Part 3 it must run
-against the FastAPI-served static build on port 8000 instead.
+`playwright.config.ts` builds the export and starts uvicorn on port 8000, matching the
+container. `reuseExistingServer` is on, so **stop the `pm-app` container before running the
+e2e suite** or the tests silently run against the image instead of the working tree.
 
 ## Build
 

@@ -27,6 +27,11 @@ def test_known_asset_is_served():
     assert response.status_code == 200
 
 
+def test_unknown_api_path_is_a_404():
+    response = client.get("/api/nope")
+    assert response.status_code == 404
+
+
 def test_unknown_path_falls_back_to_index():
     response = client.get("/some/client/route")
     assert response.status_code == 200
