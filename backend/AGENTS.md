@@ -10,7 +10,14 @@ pyproject.toml    uv-managed dependencies, pytest and ruff config
 app/config.py     Settings, read from the environment or the project root .env
 app/main.py       FastAPI app: session middleware, API routes, then the static mount
 app/auth.py       login / logout / me, and the require_user dependency
+app/board.py      board read and mutation routes
+app/db.py         engine, session factory, init_db
+app/models.py     SQLAlchemy models for the five tables
+app/schemas.py    Pydantic request and response models
+app/seed.py       the demo user, board, columns and cards
+app/security.py   pbkdf2 password hashing
 static/           the Next static export, served at / (build artifact, gitignored)
+data/             local SQLite file (gitignored; the container uses a volume)
 tests/            pytest suite
 ```
 
@@ -39,6 +46,27 @@ Every `/api` route except `login`, `logout` and `health` takes the current user 
 `CurrentUser` annotation (`Annotated[User, Depends(require_user)]`), which 401s when there
 is no session. New routes added in later parts follow that pattern.
 
+Login validates against `users.password_hash`; hashing is stdlib pbkdf2 in
+`app/security.py`. The seed creates `user` / `password`.
+
+## Database
+
+SQLite through SQLAlchemy 2.0 ORM. `docs/DATABASE.md` is the reference for the schema,
+ordering and cascade rules; read it before changing anything here.
+
+`db.configure(path)` builds the engine and session factory and registers the
+`PRAGMA foreign_keys=ON` connect listener that SQLite needs for `ON DELETE CASCADE`. It
+runs at import with `settings.database_path`, and again from the pytest fixture to point at
+a temporary file. `init_db()` runs in the app lifespan: create the tables, then seed once.
+
+Routes take `Db = Annotated[Session, Depends(get_db)]`. They resolve rows through
+`load_board` / `load_column` / `load_card`, which scope to the session user and raise 404
+for anything belonging to someone else. Positions are rewritten densely by `renumber` on
+every ordering change.
+
+There are no migrations. A schema change during the MVP means deleting `backend/data/pm.db`
+locally, or `docker volume rm pm-data` for the container, and letting it reseed.
+
 ## Static files
 
 `static/` holds the Next export and is a build artifact - gitignored apart from
@@ -66,6 +94,11 @@ built into `static/`. Tests use `fastapi.testclient.TestClient` and import the
 app as `from app.main import app`; `pythonpath = ["."]` in `pyproject.toml` puts `backend/`
 on `sys.path`, so pytest must run with `backend/` as the working directory.
 
+Anything touching the database uses the `client` fixture from `tests/conftest.py`, which
+points the app at a `tmp_path` database, or `signed_in`, which is the same client already
+logged in. Use them rather than a module-level `TestClient`: the fixture enters the app
+lifespan, and outside it no database exists and nothing is seeded.
+
 To run them in the container: `docker exec pm-app pytest`.
 
 Ruff is the linter and formatter. Run both before committing Python changes:
@@ -80,4 +113,5 @@ bugbear). Keep imports sorted by ruff rather than by hand.
 
 ## Not built yet
 
-Database, board routes and AI live in Parts 5 through 9 of `docs/PLAN.md`.
+The AI routes land in Parts 8 and 9 of `docs/PLAN.md`. `messages` exists in the schema but
+nothing reads or writes it yet.

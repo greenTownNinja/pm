@@ -25,7 +25,8 @@ COPY --from=frontend /frontend/out ./static
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
-# SQLite lives here from Part 6 onward; mounted as a named volume by the scripts.
+# SQLite lives here; mounted as a named volume by the scripts.
+ENV DATABASE_PATH=/app/data/pm.db
 RUN mkdir -p /app/data
 
 EXPOSE 8000

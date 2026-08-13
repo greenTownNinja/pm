@@ -1,13 +1,24 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import Scope
 
-from app import auth
+from app import auth, board
 from app.config import STATIC_DIR, settings
+from app.db import init_db
 
-app = FastAPI(title="Project Management MVP")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+    init_db()
+    yield
+
+
+app = FastAPI(title="Project Management MVP", lifespan=lifespan)
 
 # Signed HttpOnly cookie; SessionMiddleware always sets HttpOnly.
 app.add_middleware(
@@ -23,6 +34,7 @@ def health() -> dict[str, str]:
 
 
 app.include_router(auth.router)
+app.include_router(board.router)
 
 
 class SPAStaticFiles(StaticFiles):

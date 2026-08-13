@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str = ""
     session_secret: str = "dev-secret-change-me"
+    # The container overrides this with /app/data/pm.db, a mounted volume.
+    database_path: Path = BACKEND_DIR / "data" / "pm.db"
 
 
 settings = Settings()

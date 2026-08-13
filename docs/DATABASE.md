@@ -156,6 +156,11 @@ the server sent and never parses or constructs one.
 `columns` is ordered by position. `cards` is a flat map keyed by card id; the ordering
 lives in each column's `cardIds`.
 
+Every mutation returns the whole board rather than a fragment, so the client can reconcile
+its optimistic state against the truth in one step. `POST /api/columns/{id}/cards` is the
+one exception in shape: it returns `{card, board}`, because the client needs the id the
+server just assigned and should not have to diff the map to find it.
+
 ## Worked example: the seeded board
 
 As rows, immediately after seeding.

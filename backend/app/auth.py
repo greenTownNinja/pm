@@ -2,10 +2,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-# The MVP has one hardcoded account. Part 6 replaces this with a users table lookup.
-DEMO_USERNAME = "user"
-DEMO_PASSWORD = "password"
+from app.db import get_db
+from app.models import User as UserRow
+from app.security import verify_password
 
 router = APIRouter(prefix="/api")
 
@@ -31,11 +33,16 @@ CurrentUser = Annotated[User, Depends(require_user)]
 
 
 @router.post("/login")
-def login(credentials: Credentials, request: Request) -> User:
-    if credentials.username != DEMO_USERNAME or credentials.password != DEMO_PASSWORD:
+def login(
+    credentials: Credentials,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
+    row = db.scalar(select(UserRow).where(UserRow.username == credentials.username))
+    if row is None or not verify_password(credentials.password, row.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    request.session["username"] = credentials.username
-    return User(username=credentials.username)
+    request.session["username"] = row.username
+    return User(username=row.username)
 
 
 @router.post("/logout")

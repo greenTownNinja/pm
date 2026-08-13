@@ -238,39 +238,56 @@ messages  (id, board_id -> boards.id, role, content, created_at)
 
 **Goal**: full CRUD over the board through the API, thoroughly tested. Frontend untouched.
 
-- [ ] SQLAlchemy models for the five tables
-- [ ] Create the SQLite file and tables at startup if absent; store under a mounted volume
+- [x] SQLAlchemy models for the five tables
+- [x] Create the SQLite file and tables at startup if absent; store under a mounted volume
       path so data survives container restarts
-- [ ] Seed the `user` row and its board with the five demo columns on first run
-- [ ] `GET /api/board` returns the board in `BoardData` shape
-- [ ] `PATCH /api/columns/{id}` renames a column
-- [ ] `POST /api/columns/{id}/cards` creates a card at the end of the column
-- [ ] `PATCH /api/cards/{id}` edits title and/or details
-- [ ] `DELETE /api/cards/{id}` deletes a card and closes the position gap
-- [ ] `POST /api/cards/{id}/move` takes `{columnId, position}` and reorders both the source
+- [x] Seed the `user` row and its board with the five demo columns on first run
+- [x] `GET /api/board` returns the board in `BoardData` shape
+- [x] `PATCH /api/columns/{id}` renames a column
+- [x] `POST /api/columns/{id}/cards` creates a card at the end of the column
+- [x] `PATCH /api/cards/{id}` edits title and/or details
+- [x] `DELETE /api/cards/{id}` deletes a card and closes the position gap
+- [x] `POST /api/cards/{id}/move` takes `{columnId, position}` and reorders both the source
       and target columns
-- [ ] Every route scoped to the session user; a board or card belonging to another user
+- [x] Every route scoped to the session user; a board or card belonging to another user
       returns 404
-- [ ] Pydantic request and response models throughout
+- [x] Pydantic request and response models throughout
 
 **Tests** (pytest, against a temporary SQLite file per test)
 
-- [ ] The database and tables are created when the file does not exist
-- [ ] Seeding is idempotent across restarts
-- [ ] `GET /api/board` returns the seeded shape, columns and cards in position order
-- [ ] Column rename persists
-- [ ] Card create appends at the end and returns the new id
-- [ ] Card edit persists title and details independently
-- [ ] Card delete removes it and leaves positions contiguous
-- [ ] Move within a column reorders correctly, including to first and to last
-- [ ] Move across columns removes from source, inserts at the requested index, and leaves
+- [x] The database and tables are created when the file does not exist
+- [x] Seeding is idempotent across restarts
+- [x] `GET /api/board` returns the seeded shape, columns and cards in position order
+- [x] Column rename persists
+- [x] Card create appends at the end and returns the new id
+- [x] Card edit persists title and details independently
+- [x] Card delete removes it and leaves positions contiguous
+- [x] Move within a column reorders correctly, including to first and to last
+- [x] Move across columns removes from source, inserts at the requested index, and leaves
       both columns contiguous
-- [ ] Every route returns 401 unauthenticated
-- [ ] Cross-user access returns 404
-- [ ] Invalid ids, out-of-range positions, and empty titles return 4xx rather than 500
+- [x] Every route returns 401 unauthenticated
+- [x] Cross-user access returns 404
+- [x] Invalid ids, out-of-range positions, and empty titles return 4xx rather than 500
 
 **Success criteria**: the full pytest suite passes, and a manual `curl` sequence
 (login, read, mutate, read back) shows the mutation persisted across a container restart.
+
+**Notes from execution**
+
+- `db.configure(path)` rebinds the engine and session factory, so the pytest fixture points
+  the app at a `tmp_path` database and lets the app's own startup create and seed it. No
+  dependency overrides, and the seeding path is exercised by every test.
+- Login now validates against `users.password_hash` (stdlib pbkdf2), so Part 4's hardcoded
+  credentials are gone from `app/auth.py`. The seed still creates `user` / `password`.
+- Move semantics are remove-then-insert: moving a card to index 1 of its own column lands
+  it *after* the card that was there. An index past the end means "last". This is what
+  dnd-kit's drop indices already mean, and Part 7 depends on it.
+- Every mutation returns the full board; card creation returns `{card, board}` so the
+  client gets the server-assigned id without diffing. Recorded in `docs/DATABASE.md`.
+- Card and column path params are typed `int`, so a non-numeric id is a 422 from FastAPI.
+  `columnId` inside the move body is a string like every other id in the contract, and a
+  non-numeric one is a 404.
+- `backend/data/` is gitignored; the container overrides `DATABASE_PATH` to the volume.
 
 ---
 

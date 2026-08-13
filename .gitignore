@@ -181,3 +181,6 @@ cython_debug/
 # Next static export, built into backend/static by npm run build:static
 backend/static/*
 !backend/static/.gitkeep
+
+# Local SQLite database (the container keeps its own in a volume)
+backend/data/
